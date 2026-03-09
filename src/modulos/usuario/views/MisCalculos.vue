@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { Chart, LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip, Legend } from "chart.js";
 import { io } from "socket.io-client";
 import axios from "axios";
-import { obtenerSeriesDatos } from "../services/UsuarioService";
+import { obtenerSeries, obtenerSeriesDatos } from "../services/UsuarioService";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip, Legend);
 
@@ -43,7 +43,7 @@ const prepararDatos = (data) => {
 // Cargar series del backend
 const cargarSeries = async () => {
   try {
-    const res = await axios.get("http://localhost:3000/api/series");
+    const res = await obtenerSeries()
     seriesList.value = res.data.data;
     if (seriesList.value.length) selectedSerie.value = seriesList.value[0]._id;
   } catch (error) {
@@ -95,7 +95,7 @@ const cargarDatosSerie = async (serieId) => {
         datasets: [{
           label: "Error de aproximación",
           data: errores,
-          borderColor: "rgba(124,153,47,1)",
+          borderColor: "rgba(255,0,0,1)",
           backgroundColor: "rgba(124,153,47,0.2)",
           fill: false,
           tension: 0.2
