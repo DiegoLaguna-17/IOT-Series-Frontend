@@ -21,13 +21,12 @@
         </div>
         <div class="user-data">
           <div class="user-name">{{ nombreUsuario }}</div>
-          <div class="user-role">Docente</div>
         </div>
       </div>
 
       <nav class="menu">
         <router-link to="misCalculos" class="menu-item" @click="isMenuOpen = false">Mis calculos</router-link>
-        <router-link to="GenerarCalculo" class="menu-item" @click="isMenuOpen = false">Mis calculos</router-link>
+        <router-link to="GenerarCalculo" class="menu-item" @click="isMenuOpen = false">Generar Cálculo</router-link>
 
        
       </nav>

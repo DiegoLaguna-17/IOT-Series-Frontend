@@ -1,20 +1,22 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
-import { Chart, LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip } from "chart.js";
+import { Chart, LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip, Legend } from "chart.js";
 import { io } from "socket.io-client";
 import axios from "axios";
 import { obtenerSeriesDatos } from "../services/UsuarioService";
 
-// Chart.js setup
-Chart.register(LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip);
+Chart.register(LineController, LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip, Legend);
 
-const chartRef = ref(null);
-let chartInstance = null;
+const chartRefValor = ref(null);
+const chartRefError = ref(null);
+let chartValor = null;
+let chartError = null;
+
 const socket = io("http://localhost:3000"); // tu backend
 
 // Estado
 const seriesList = ref([]);
-const selectedSerie = ref(""); // _id de la serie activa
+const selectedSerie = ref("");
 
 // Función para transformar cálculos a datos de Chart.js
 const prepararDatos = (data) => {
@@ -22,7 +24,8 @@ const prepararDatos = (data) => {
     calculo.iteraciones.map(iter => ({
       fecha: new Date(calculo.fecha),
       paso: iter.paso,
-      valor: iter.valor
+      valor: iter.valor,
+      error: iter.error
     }))
   );
 
@@ -32,33 +35,35 @@ const prepararDatos = (data) => {
     labels: allIterations.map(item =>
       `${item.fecha.toLocaleDateString()} ${item.fecha.toLocaleTimeString()} P${item.paso}`
     ),
-    valores: allIterations.map(item => item.valor)
+    valores: allIterations.map(item => item.valor),
+    errores: allIterations.map(item => item.error)
   };
 };
 
 // Cargar series del backend
 const cargarSeries = async () => {
   try {
-    const res = await axios.get("http://localhost:3000/api/series"); // endpoint que devuelve todas las series
-    seriesList.value = res.data.data; // asumimos {success:true,data:[{_id,nombre,funcion,...},...]}
+    const res = await axios.get("http://localhost:3000/api/series");
+    seriesList.value = res.data.data;
     if (seriesList.value.length) selectedSerie.value = seriesList.value[0]._id;
   } catch (error) {
     console.error("Error cargando series:", error);
   }
 };
 
-// Cargar datos iniciales para la serie activa
+// Cargar datos iniciales de la serie seleccionada
 const cargarDatosSerie = async (serieId) => {
   try {
     if (!serieId) return;
     const res = await obtenerSeriesDatos(serieId)
-    const { labels, valores } = prepararDatos(res.data.data);
+    const { labels, valores, errores } = prepararDatos(res.data.data);
 
-    if (chartInstance) {
-      chartInstance.destroy(); // destruir gráfico anterior
-    }
+    // Destruir gráficos anteriores si existen
+    if (chartValor) chartValor.destroy();
+    if (chartError) chartError.destroy();
 
-    chartInstance = new Chart(chartRef.value, {
+    // Gráfico de valores
+    chartValor = new Chart(chartRefValor.value, {
       type: "line",
       data: {
         labels,
@@ -75,15 +80,38 @@ const cargarDatosSerie = async (serieId) => {
         responsive: true,
         plugins: {
           tooltip: { mode: "index", intersect: false },
-          title: { display: true, text: "Evolución de Iteraciones por Fecha" }
+          title: { display: true, text: "Evolución de Iteraciones" }
         },
         interaction: { mode: "nearest", axis: "x", intersect: false },
-        scales: {
-          x: { title: { display: true, text: "Fecha y hora" } },
-          y: { title: { display: true, text: "Valor" } }
-        }
+        scales: { x: { title: { display: true, text: "Fecha y hora" } }, y: { title: { display: true, text: "Valor" } } }
       }
     });
+
+    // Gráfico de errores
+    chartError = new Chart(chartRefError.value, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Error de aproximación",
+          data: errores,
+          borderColor: "rgba(124,153,47,1)",
+          backgroundColor: "rgba(124,153,47,0.2)",
+          fill: false,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          tooltip: { mode: "index", intersect: false },
+          title: { display: true, text: "Error de Aproximación" }
+        },
+        interaction: { mode: "nearest", axis: "x", intersect: false },
+        scales: { x: { title: { display: true, text: "Fecha y hora" } }, y: { title: { display: true, text: "Error" } } }
+      }
+    });
+
   } catch (error) {
     console.error("Error cargando datos de la serie:", error);
   }
@@ -91,33 +119,38 @@ const cargarDatosSerie = async (serieId) => {
 
 // Agregar nuevo cálculo solo si corresponde a la serie activa
 const agregarNuevoCalculo = (nuevoCalculo) => {
-  if (!chartInstance) return;
-  if (nuevoCalculo.serie !== selectedSerie.value) return; // filtra por serie activa
+  if (!selectedSerie.value) return;
+  if (nuevoCalculo.serie !== selectedSerie.value) return;
 
   const iteraciones = nuevoCalculo.iteraciones.map(iter => ({
     fecha: new Date(nuevoCalculo.fecha),
     paso: iter.paso,
-    valor: iter.valor
+    valor: iter.valor,
+    error: iter.error
   }));
 
   iteraciones.forEach(item => {
-    chartInstance.data.labels.push(`${item.fecha.toLocaleDateString()} ${item.fecha.toLocaleTimeString()} P${item.paso}`);
-    chartInstance.data.datasets[0].data.push(item.valor);
+    const label = `${item.fecha.toLocaleDateString()} ${item.fecha.toLocaleTimeString()} P${item.paso}`;
+    chartValor.data.labels.push(label);
+    chartValor.data.datasets[0].data.push(item.valor);
+
+    chartError.data.labels.push(label);
+    chartError.data.datasets[0].data.push(item.error);
   });
 
-  chartInstance.update();
+  chartValor.update();
+  chartError.update();
 };
 
-// Watcher: cuando cambia la serie seleccionada, recargar datos
+// Watcher para cambiar de serie
 watch(selectedSerie, async (newSerie) => {
   await cargarDatosSerie(newSerie);
 });
 
 onMounted(async () => {
-  await cargarSeries();        // carga series disponibles
-  await cargarDatosSerie(selectedSerie.value); // carga datos iniciales
+  await cargarSeries();
+  await cargarDatosSerie(selectedSerie.value);
 
-  // Escuchar cálculos nuevos en tiempo real
   socket.on("nuevoCalculo", (nuevo) => {
     console.log("Nuevo cálculo recibido:", nuevo);
     agregarNuevoCalculo(nuevo);
@@ -139,6 +172,7 @@ onBeforeUnmount(() => {
       </option>
     </select>
 
-    <canvas ref="chartRef"></canvas>
+    <canvas ref="chartRefValor" style="margin-bottom:40px;"></canvas>
+    <canvas ref="chartRefError"></canvas>
   </div>
 </template>
