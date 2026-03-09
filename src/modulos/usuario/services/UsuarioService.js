@@ -22,3 +22,7 @@ export const crearCalculo=async(datos)=>{
     };
   }
 }
+
+export const obtenerSeriesDatos=async(id)=>{
+    return api.get(`/calculos/serie/${id}`)
+}
