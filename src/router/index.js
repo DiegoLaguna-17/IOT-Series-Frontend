@@ -4,6 +4,8 @@ import UsuarioLayout from "../layouts/UsuarioLayout.vue"
 
 import login from "../modulos/login/views/login.vue"
 import MisCalculos from "../modulos/usuario/views/MisCalculos.vue"
+import GenerarCalculo from "../modulos/usuario/views/GenerarCalculo.vue"
+
 
 const routes = [
   {
@@ -27,6 +29,11 @@ const routes = [
             path:"/misCalculos",
             name:"misCalculos",
             component:MisCalculos
+        },
+        {
+          path:"/generarCalculo",
+          name:"generarCalculo",
+          component:GenerarCalculo
         }
     ]
   }
